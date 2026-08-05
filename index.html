@@ -348,6 +348,33 @@
   </div>
 </div>
 
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyB5m7MtyEercqNt0T9hny7PPQr_-qR3sZ4",
+    authDomain: "dada-lesley-love.firebaseapp.com",
+    projectId: "dada-lesley-love",
+    storageBucket: "dada-lesley-love.firebasestorage.app",
+    messagingSenderId: "653821539044",
+    appId: "1:653821539044:web:7737af07da1cb51923b2f1"
+  };
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const sharedDocRef = doc(db, "coupleData", "shared");
+
+  window.fbSaveData = function(data){
+    setDoc(sharedDocRef, data).catch(function(err){ console.warn('Cloud save failed', err); });
+  };
+
+  window.fbSubscribe = function(callback){
+    onSnapshot(sharedDocRef, function(snap){
+      callback(snap.exists() ? snap.data() : null);
+    }, function(err){ console.warn('Cloud subscribe failed', err); });
+  };
+</script>
+
 <script>
 /* ================= CONFIG ================= */
 const PASSCODE = "0415";
@@ -456,7 +483,10 @@ function loadData(){
     nextVisit:null
   };
 }
-function saveData(data){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+function saveData(data){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  if(window.fbSaveData) window.fbSaveData(data);
+}
 let DATA = loadData();
 
 /* ================= NEXT VISIT ================= */
@@ -659,6 +689,30 @@ function startAllTimers(){
   renderTimeline();
   renderNotes();
   renderVisit();
+  subscribeToCloudSync();
+}
+
+/* ================= CLOUD SYNC ================= */
+function subscribeToCloudSync(){
+  function attach(){
+    if(window.fbSubscribe){
+      window.fbSubscribe(function(remoteData){
+        if(remoteData){
+          DATA = remoteData;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA));
+        } else if(window.fbSaveData){
+          // No shared doc in the cloud yet — push our current local data up as the starting point.
+          window.fbSaveData(DATA);
+        }
+        renderTimeline();
+        renderNotes();
+        renderVisit();
+      });
+    } else {
+      setTimeout(attach, 300);
+    }
+  }
+  attach();
 }
 
 initBgDecor();
