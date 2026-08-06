@@ -284,6 +284,19 @@
   .hero-together{width:110px; height:auto; margin:14px 0 4px; filter:drop-shadow(0 6px 10px rgba(150,110,90,.25)); animation:breathe 3.4s ease-in-out infinite;}
   .inline-sleepy-pup{width:34px; height:auto; vertical-align:middle; margin-left:4px; filter:drop-shadow(0 2px 4px rgba(150,110,90,.25));}
   .footer-lift-pup{width:70px; height:auto; display:block; margin:0 auto 6px; filter:drop-shadow(0 4px 8px rgba(150,110,90,.22));}
+
+  /* Send a kiss */
+  .kiss-btn{margin-top:14px;}
+
+  /* Toast */
+  .site-toast{
+    position:fixed; left:50%; bottom:30px; transform:translateX(-50%) translateY(20px);
+    background:var(--pink-dark); color:#fff; padding:12px 22px; border-radius:30px;
+    font-family:'Baloo 2'; font-weight:700; font-size:.95rem; box-shadow:0 10px 30px rgba(0,0,0,.18);
+    opacity:0; pointer-events:none; transition:opacity .3s ease, transform .3s ease; z-index:90;
+    max-width:88vw; text-align:center;
+  }
+  .site-toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
 </style>
 </head>
 <body>
@@ -315,6 +328,7 @@
       <div class="pup-box bounce tappable" id="pupLesleyBox" onclick="heartBurst(event)"></div>
       <div class="pup-box bounce tappable" id="pupDadaBox" style="animation-delay:1.2s;" onclick="heartBurst(event)"></div>
     </div>
+    <button class="btn kiss-btn" onclick="sendKiss()">💌 Send a kiss</button>
   </header>
 
   <nav class="tab-nav" id="tabNav">
@@ -479,6 +493,7 @@
   </div>
 </div>
 
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
   import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -576,11 +591,23 @@ function renderDayCounter(){
   grid.innerHTML = unitHTML(d,'days')+unitHTML(h,'hours')+unitHTML(m,'min')+unitHTML(s,'sec');
   document.getElementById('sinceLine').textContent =
     `That's ${d} days of ${cityDistanceApprox()}km apart, and zero days of loving each other less.`;
+  checkRoundDayMilestone(d);
 }
 function unitHTML(val,label){
   return `<div class="counter-unit"><div class="num">${val}</div><div class="label">${label}</div></div>`;
 }
 function cityDistanceApprox(){ return "16,600"; } // Melbourne-Toronto approx straight-line km
+
+/* ================= ROUND-NUMBER DAY CELEBRATIONS ================= */
+const ROUND_DAY_MILESTONES = [50,100,150,200,250,300,365,400,500,600,700,730,800,900,1000,1095,1200,1500,1825,2000,2500,3000,3650];
+function checkRoundDayMilestone(d){
+  if(!ROUND_DAY_MILESTONES.includes(d)) return;
+  const key = 'dl_celebratedDay_' + d;
+  if(localStorage.getItem(key)) return;
+  localStorage.setItem(key, '1');
+  burstConfetti();
+  showToast(`🎉 ${d} days together!`);
+}
 
 /* ================= CLOCKS ================= */
 function getHourInTZ(tz){
@@ -609,7 +636,13 @@ function renderClocks(){
 /* ================= DATA STORE ================= */
 function loadData(){
   const raw = localStorage.getItem(STORAGE_KEY);
-  if(raw){ try{ const parsed = JSON.parse(raw); if(!parsed.challenges) parsed.challenges = []; return parsed; }catch(e){ /* fallthrough */ } }
+  if(raw){
+    try{
+      const parsed = JSON.parse(raw);
+      if(!parsed.challenges) parsed.challenges = [];
+      return parsed;
+    }catch(e){ /* fallthrough */ }
+  }
   return {
     milestones:[
       {id:1, date:"2026-04-15", title:"The day it all began", text:"April 15, 2026 — the start of something worth the distance.", photo:TOGETHER_PUPS_SRC}
@@ -942,6 +975,68 @@ function burstConfetti(){
   }
 }
 
+/* ================= TOASTS ================= */
+let toastTimer = null;
+function showToast(msg){
+  let toast = document.getElementById('siteToast');
+  if(!toast){
+    toast = document.createElement('div');
+    toast.id = 'siteToast';
+    toast.className = 'site-toast';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.classList.add('show');
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=> toast.classList.remove('show'), 2800);
+}
+
+/* ================= SEND A KISS ================= */
+function getSeenKissTs(){
+  return parseInt(localStorage.getItem('dl_lastSeenKissTs')||'0',10);
+}
+function setSeenKissTs(ts){
+  localStorage.setItem('dl_lastSeenKissTs', String(ts));
+}
+function sendKiss(){
+  const ts = Date.now();
+  DATA.lastKiss = { ts };
+  saveData(DATA);
+  setSeenKissTs(ts);
+  kissBurst();
+  showToast('Kiss sent 💌');
+}
+function handleIncomingKiss(){
+  if(!DATA.lastKiss) return;
+  const ts = DATA.lastKiss.ts;
+  if(ts <= getSeenKissTs()) return;
+  setSeenKissTs(ts);
+  kissBurst();
+  showToast('A kiss just arrived 💗');
+}
+function kissBurst(){
+  const hearts = ['💗','💕','💖','💘'];
+  const box = document.getElementById('bgDecor');
+  const cx = window.innerWidth/2, cy = window.innerHeight/2;
+  for(let i=0;i<24;i++){
+    const s = document.createElement('span');
+    s.className = 'confetti-piece';
+    s.textContent = hearts[i % hearts.length];
+    s.style.left = cx + 'px';
+    s.style.top = cy + 'px';
+    const angle = Math.random()*Math.PI*2;
+    const dist = 100 + Math.random()*160;
+    s.style.setProperty('--dx', (Math.cos(angle)*dist) + 'px');
+    s.style.setProperty('--dy', (Math.sin(angle)*dist - 60) + 'px');
+    s.style.setProperty('--rot', ((Math.random()-0.5)*360) + 'deg');
+    s.style.fontSize = (20 + Math.random()*18) + 'px';
+    s.style.animationDelay = (Math.random()*0.15) + 's';
+    box.appendChild(s);
+    setTimeout(()=> s.remove(), 2200);
+  }
+}
+
+
 /* ================= FUN EXTRAS ================= */
 function heartBurst(evt){
   const rect = evt.currentTarget.getBoundingClientRect();
@@ -1021,6 +1116,7 @@ function subscribeToCloudSync(){
           DATA = remoteData;
           if(!DATA.challenges) DATA.challenges = [];
           localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA));
+          handleIncomingKiss();
         } else if(window.fbSaveData){
           // No shared doc in the cloud yet — push our current local data up as the starting point.
           window.fbSaveData(DATA);
